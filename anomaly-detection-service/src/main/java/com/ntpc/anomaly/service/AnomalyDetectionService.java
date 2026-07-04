@@ -31,15 +31,23 @@ public class AnomalyDetectionService {
     private final ThresholdConfig thresholdConfig;
     private final KafkaTemplate<String, Alert> kafkaTemplate;
     private final Counter alertsPublishedCounter;
+    private final Counter messagesProcessedCounter;
 
     // Tracks consecutive breach count per sensorId
     private final Map<String, Integer> breachCounters = new ConcurrentHashMap<>();
+
+    // Cache of active overrides per sensorId
+    private final Map<String, com.ntpc.anomaly.dto.ThresholdOverrideRequest> activeOverrides = new ConcurrentHashMap<>();
 
     @Value("${anomaly.consecutive-breaches-required}")
     private int consecutiveBreachesRequired;
 
     @Value("${anomaly.alerts-topic}")
     private String alertsTopic;
+
+    public void applyOverride(com.ntpc.anomaly.dto.ThresholdOverrideRequest override) {
+        activeOverrides.put(override.getSensorId(), override);
+    }
 
     public AnomalyDetectionService(ThresholdConfig thresholdConfig,
                                     KafkaTemplate<String, Alert> kafkaTemplate,
@@ -49,30 +57,45 @@ public class AnomalyDetectionService {
         this.alertsPublishedCounter = Counter.builder("anomaly.alerts.published")
                 .description("Total alerts published to sensor-alerts topic")
                 .register(meterRegistry);
+        this.messagesProcessedCounter = Counter.builder("anomaly.messages.processed")
+                .description("Total sensor readings processed")
+                .register(meterRegistry);
     }
 
     @KafkaListener(topics = "${anomaly.readings-topic}", groupId = "anomaly-detection-group")
     public void evaluate(SensorReading reading) {
-        ThresholdConfig.ThresholdPair thresholds = thresholdConfig.getThresholds().get(reading.getSensorType());
+        messagesProcessedCounter.increment();
+        String sensorId = reading.getSensorId();
+        
+        double warnThreshold;
+        double critThreshold;
 
-        if (thresholds == null) {
-            log.warn("[ANOMALY] No thresholds configured for sensorType={}", reading.getSensorType());
-            return;
+        // Check for active override first
+        com.ntpc.anomaly.dto.ThresholdOverrideRequest override = activeOverrides.get(sensorId);
+        if (override != null) {
+            warnThreshold = override.getNewWarn();
+            critThreshold = override.getNewCrit();
+        } else {
+            ThresholdConfig.ThresholdPair thresholds = thresholdConfig.getThresholds().get(reading.getSensorType());
+            if (thresholds == null) {
+                log.warn("[ANOMALY] No thresholds configured for sensorType={}", reading.getSensorType());
+                return;
+            }
+            warnThreshold = thresholds.getWarning();
+            critThreshold = thresholds.getCritical();
         }
 
         String severity = null;
         double threshold = 0;
 
         // Check CRITICAL first (higher severity takes precedence)
-        if (reading.getValue() > thresholds.getCritical()) {
+        if (reading.getValue() > critThreshold) {
             severity = "CRITICAL";
-            threshold = thresholds.getCritical();
-        } else if (reading.getValue() > thresholds.getWarning()) {
+            threshold = critThreshold;
+        } else if (reading.getValue() > warnThreshold) {
             severity = "WARNING";
-            threshold = thresholds.getWarning();
+            threshold = warnThreshold;
         }
-
-        String sensorId = reading.getSensorId();
 
         if (severity != null) {
             // Threshold breached — increment consecutive counter
@@ -110,8 +133,9 @@ public class AnomalyDetectionService {
                         sensorId, reading.getUnit(), reading.getSensorType(),
                         reading.getValue(), threshold, severity);
 
-                // Reset counter after firing (prevent continuous re-firing every cycle)
-                breachCounters.put(sensorId, 0);
+                // Counter is NOT reset here so that alerts are continuously emitted
+                // to Kafka every cycle while the breach persists. The AlertingService 
+                // will handle frequency deduplication.
             }
         } else {
             // Value within normal range — reset consecutive breach counter

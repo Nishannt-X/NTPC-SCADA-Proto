@@ -65,7 +65,16 @@ public class AlertingService {
 
         if (existingOpt.isPresent()) {
             AlertEntity existing = existingOpt.get();
-            Instant dedupCutoff = Instant.now().minus(dedupWindowMinutes, ChronoUnit.MINUTES);
+            
+            // --- Suppression check ---
+            if (existing.getSuppressedUntil() != null && existing.getSuppressedUntil().isAfter(Instant.now())) {
+                log.info("[SUPPRESSED] Ignoring alert for sensorId={} (suppressed until {})", sensorId, existing.getSuppressedUntil());
+                return;
+            }
+
+            // Dynamic dedup window based on severity
+            int dedupWindowSeconds = severity.equalsIgnoreCase("CRITICAL") ? 60 : 300;
+            Instant dedupCutoff = Instant.now().minus(dedupWindowSeconds, ChronoUnit.SECONDS);
 
             if (existing.getTriggeredAt().isAfter(dedupCutoff)) {
                 // Within dedup window — just update lastSeenAt and value

@@ -20,7 +20,11 @@ spring:
     open-in-view: false
 
   flyway:
-    enabled: false  # Ingestion service owns schema migrations
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    table: flyway_schema_history_query
+    baseline-version: 0
 
   # Redis (Phase 4 — disabled until Redis is needed)
   data:

@@ -142,7 +142,7 @@ public class SensorSimulatorService {
      */
     public List<String> injectFault(FaultInjectionRequest request) {
         double multiplier = switch (request.getMagnitude().toUpperCase()) {
-            case "SEVERE" -> 1.25;   // +25% above baseline
+            case "SEVERE" -> request.getSensorType().equalsIgnoreCase("VIBRATION") ? 2.5 : 1.25;
             case "MODERATE" -> 1.15; // +15% above baseline
             default -> 1.10;         // fallback: +10%
         };

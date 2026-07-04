@@ -50,4 +50,16 @@ public class AlertEntity {
 
     @Column(name = "resolved_at")
     private Instant resolvedAt;
+
+    @Column(name = "acknowledged_by")
+    private String acknowledgedBy;
+
+    @Column(name = "acknowledged_at")
+    private Instant acknowledgedAt;
+
+    @Column(name = "notes")
+    private String notes;
+
+    @Column(name = "suppressed_until")
+    private Instant suppressedUntil;
 }
