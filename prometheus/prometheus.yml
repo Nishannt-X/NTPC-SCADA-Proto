@@ -1,0 +1,55 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # Prometheus self-monitoring
+  # ---------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ---------------------------------------------------------------------------
+  # Spring Boot services — will become available as services are added
+  # Each service exposes /actuator/prometheus via micrometer-registry-prometheus
+  # ---------------------------------------------------------------------------
+  - job_name: 'sensor-simulator'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['sensor-simulator:8081']
+        labels:
+          service: 'sensor-simulator'
+
+  - job_name: 'ingestion-service'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['ingestion-service:8082']
+        labels:
+          service: 'ingestion-service'
+
+  - job_name: 'anomaly-detection-service'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['anomaly-detection-service:8083']
+        labels:
+          service: 'anomaly-detection-service'
+
+  - job_name: 'alerting-service'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['alerting-service:8084']
+        labels:
+          service: 'alerting-service'
+
+  - job_name: 'query-api'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['query-api:8080']
+        labels:
+          service: 'query-api'

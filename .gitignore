@@ -1,0 +1,25 @@
+# Build output
+**/target/
+**/*.jar
+**/*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Logs
+**/*.log
+
+# k6 output
+load-tests/load-test-results.json

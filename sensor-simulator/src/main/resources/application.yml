@@ -1,0 +1,42 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: sensor-simulator
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        retry.backoff.ms: 1000
+        delivery.timeout.ms: 30000
+
+# --- Simulator Configuration ---
+simulator:
+  interval-ms: ${SIMULATOR_INTERVAL_MS:3000}
+  topic: ${SIMULATOR_TOPIC:sensor-readings}
+  drift-percent: ${SIMULATOR_DRIFT_PERCENT:0.5}
+
+# --- Actuator / Prometheus ---
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: sensor-simulator
+
+logging:
+  level:
+    com.ntpc.simulator: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

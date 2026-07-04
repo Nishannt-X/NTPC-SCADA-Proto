@@ -1,0 +1,14 @@
+package com.ntpc.simulator;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableScheduling
+public class SensorSimulatorApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(SensorSimulatorApplication.class, args);
+    }
+}

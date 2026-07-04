@@ -1,0 +1,64 @@
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  application:
+    name: anomaly-detection-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: anomaly-detection-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.ntpc.anomaly.dto.SensorReading
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# --- Threshold Configuration ---
+thresholds:
+  TEMPERATURE:
+    warning: 560.0
+    critical: 580.0
+  PRESSURE:
+    warning: 185.0
+    critical: 195.0
+  VIBRATION:
+    warning: 0.5
+    critical: 0.7
+  RPM:
+    warning: 3150.0
+    critical: 3250.0
+  LOAD:
+    warning: 92.0
+    critical: 97.0
+
+# --- Anomaly Detection Settings ---
+anomaly:
+  consecutive-breaches-required: ${ANOMALY_CONSECUTIVE_BREACHES:2}
+  readings-topic: ${ANOMALY_READINGS_TOPIC:sensor-readings}
+  alerts-topic: ${ANOMALY_ALERTS_TOPIC:sensor-alerts}
+
+# --- Actuator / Prometheus ---
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: anomaly-detection-service
+
+logging:
+  level:
+    com.ntpc.anomaly: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

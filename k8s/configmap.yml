@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntpc-config
+  namespace: ntpc-telemetry
+data:
+  # Kafka
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  SIMULATOR_TOPIC: "sensor-readings"
+  ANOMALY_READINGS_TOPIC: "sensor-readings"
+  ANOMALY_ALERTS_TOPIC: "sensor-alerts"
+  ALERTING_TOPIC: "sensor-alerts"
+  INGESTION_TOPIC: "sensor-readings"
+
+  # Service ports
+  SIMULATOR_INTERVAL_MS: "3000"
+  INGESTION_BATCH_SIZE: "50"
+  INGESTION_FLUSH_INTERVAL_MS: "1000"
+  ANOMALY_CONSECUTIVE_BREACHES: "2"
+  ALERTING_DEDUP_WINDOW_MINUTES: "5"
+  ALERTING_AUTO_RESOLVE_MINUTES: "2"
+
+  # Cache
+  CACHE_TTL: "5"
+  CORS_ORIGINS: "*"
+
+  # Database
+  DB_HOST: "timescaledb"
+  DB_PORT: "5432"
+  DB_NAME: "telemetry"
+
+  # Redis
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # Simulator proxy
+  SIMULATOR_BASE_URL: "http://sensor-simulator:8081"

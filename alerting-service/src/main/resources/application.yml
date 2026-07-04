@@ -1,0 +1,65 @@
+server:
+  port: ${SERVER_PORT:8084}
+
+spring:
+  application:
+    name: alerting-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: alerting-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.ntpc.alerting.dto.Alert
+        spring.json.use.type.headers: false
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:telemetry}
+    username: ${DB_USER:telemetry}
+    password: ${DB_PASSWORD:telemetry_pass}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    table: flyway_schema_history_alerting
+    baseline-version: 0
+
+# --- Alerting Configuration ---
+alerting:
+  topic: ${ALERTING_TOPIC:sensor-alerts}
+  dedup-window-minutes: ${ALERTING_DEDUP_WINDOW_MINUTES:5}
+  auto-resolve-window-minutes: ${ALERTING_AUTO_RESOLVE_MINUTES:2}
+  auto-resolve-check-interval-ms: ${ALERTING_AUTO_RESOLVE_INTERVAL_MS:60000}
+
+# --- Actuator / Prometheus ---
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: alerting-service
+
+logging:
+  level:
+    com.ntpc.alerting: INFO
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

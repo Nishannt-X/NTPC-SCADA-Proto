@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alerting-service
+  namespace: ntpc-telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alerting-service
+  template:
+    metadata:
+      labels:
+        app: alerting-service
+    spec:
+      containers:
+        - name: alerting-service
+          image: ntpc/alerting-service:latest
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: ntpc-config
+            - secretRef:
+                name: ntpc-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alerting-service
+  namespace: ntpc-telemetry
+spec:
+  selector:
+    app: alerting-service
+  ports:
+    - port: 8084
+      targetPort: 8084
