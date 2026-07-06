@@ -29,6 +29,7 @@ public class AlertQueryService {
         try {
             List<AlertEntity> entities = alertRepository.findActiveAlerts();
             return entities.stream()
+                    .filter(a -> a.getSuppressedUntil() == null || a.getSuppressedUntil().isBefore(Instant.now()))
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
         } catch (Exception e) {
@@ -68,6 +69,8 @@ public class AlertQueryService {
                 .timestamp(entity.getTriggeredAt())
                 .lastSeenAt(entity.getLastSeenAt())
                 .resolvedAt(entity.getResolvedAt())
+                .acknowledgedBy(entity.getAcknowledgedBy())
+                .suppressedUntil(entity.getSuppressedUntil())
                 .build();
     }
 }

@@ -46,12 +46,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/error").permitAll()
                         // Operator only endpoints
                         .requestMatchers("/api/v1/alerts/*/acknowledge").hasAuthority("ROLE_OPERATOR")
                         .requestMatchers("/api/v1/alerts/*/suppress").hasAuthority("ROLE_OPERATOR")
                         .requestMatchers("/api/v1/sensors/*/override-threshold").hasAuthority("ROLE_OPERATOR")
                         // General telemetry access (Operator, Supervisor, Admin can view)
-                        .anyRequest().permitAll()
+                        .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 

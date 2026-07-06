@@ -23,4 +23,4 @@ CREATE TABLE IF NOT EXISTS threshold_overrides (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_time ON audit_logs (timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_threshold_overrides_active ON threshold_overrides (sensor_id, expires_at) WHERE expires_at > CURRENT_TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_threshold_overrides_active ON threshold_overrides (sensor_id, expires_at);

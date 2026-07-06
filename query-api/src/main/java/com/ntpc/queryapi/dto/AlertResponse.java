@@ -35,4 +35,9 @@ public class AlertResponse implements Serializable {
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, timezone = "UTC")
     private Instant resolvedAt;
+
+    private String acknowledgedBy;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, timezone = "UTC")
+    private Instant suppressedUntil;
 }
