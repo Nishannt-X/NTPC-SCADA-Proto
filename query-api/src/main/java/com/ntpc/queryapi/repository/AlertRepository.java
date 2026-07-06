@@ -19,9 +19,9 @@ public interface AlertRepository extends JpaRepository<AlertEntity, UUID> {
      * Find all currently active (unresolved) alerts, ordered by most recent first.
      */
     @Query(value = """
-            SELECT * FROM alerts
+            SELECT * FROM alert_events
             WHERE resolved_at IS NULL
-            ORDER BY triggered_at DESC
+            ORDER BY fired_at DESC
             """, nativeQuery = true)
     List<AlertEntity> findActiveAlerts();
 
@@ -29,17 +29,17 @@ public interface AlertRepository extends JpaRepository<AlertEntity, UUID> {
      * Historical alerts with optional filters for time range, unit, and severity.
      */
     @Query(value = """
-            SELECT * FROM alerts
-            WHERE triggered_at >= :fromTime
-              AND triggered_at <= :toTime
+            SELECT * FROM alert_events
+            WHERE fired_at >= :fromTime
+              AND fired_at <= :toTime
               AND (:unit IS NULL OR unit = :unit)
               AND (:severity IS NULL OR severity = :severity)
-            ORDER BY triggered_at DESC
+            ORDER BY fired_at DESC
             """,
             countQuery = """
-            SELECT count(*) FROM alerts
-            WHERE triggered_at >= :fromTime
-              AND triggered_at <= :toTime
+            SELECT count(*) FROM alert_events
+            WHERE fired_at >= :fromTime
+              AND fired_at <= :toTime
               AND (:unit IS NULL OR unit = :unit)
               AND (:severity IS NULL OR severity = :severity)
             """,

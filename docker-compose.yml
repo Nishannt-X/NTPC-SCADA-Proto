@@ -201,6 +201,27 @@ services:
         condition: service_started
     restart: on-failure
 
+  # Kafka Setup - Creates topics automatically on startup
+  kafka-setup:
+    image: apache/kafka:3.8.1
+    container_name: ntpc-kafka-setup
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - telemetry-net
+    command: >
+      bash -c '
+      echo "Waiting for Kafka to be ready...";
+      sleep 15;
+      echo "Creating topics...";
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic alert-lifecycle-events --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic threshold-override-events --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic maintenance-events --config retention.ms=2592000000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic shift-handover-events --config retention.ms=31536000000;
+      echo "Topics created."
+      '
+
 # =============================================================================
 # Volumes
 # =============================================================================

@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "alerts")
+@Table(name = "alert_events")
 @Data
 @Builder
 @NoArgsConstructor
@@ -39,17 +39,23 @@ public class AlertEntity {
     @Column(name = "severity", nullable = false)
     private String severity;
 
-    @Column(name = "message", nullable = false)
+    @Column(name = "message")
     private String message;
 
-    @Column(name = "triggered_at", nullable = false)
-    private Instant triggeredAt;
+    @Column(name = "fired_at", nullable = false)
+    private Instant firedAt;
 
     @Column(name = "last_seen_at", nullable = false)
     private Instant lastSeenAt;
 
-    @Column(name = "resolved_at")
-    private Instant resolvedAt;
+    @Column(name = "first_breach_at")
+    private Instant firstBreachAt;
+
+    @Column(name = "ack_deadline")
+    private Instant ackDeadline;
+
+    @Column(name = "resolution_deadline")
+    private Instant resolutionDeadline;
 
     @Column(name = "acknowledged_by")
     private String acknowledgedBy;
@@ -57,9 +63,48 @@ public class AlertEntity {
     @Column(name = "acknowledged_at")
     private Instant acknowledgedAt;
 
-    @Column(name = "notes")
-    private String notes;
+    @Column(name = "ack_notes")
+    private String ackNotes;
 
     @Column(name = "suppressed_until")
     private Instant suppressedUntil;
+
+    @Column(name = "suppressed_at")
+    private Instant suppressedAt;
+
+    @Column(name = "suppressed_by")
+    private String suppressedBy;
+
+    @Column(name = "suppression_reason")
+    private String suppressionReason;
+
+    @Column(name = "resolved_at")
+    private Instant resolvedAt;
+
+    @Column(name = "resolved_by")
+    private String resolvedBy;
+
+    @Column(name = "resolution_type")
+    private String resolutionType;
+
+    @Column(name = "resolution_notes")
+    private String resolutionNotes;
+
+    @Column(name = "escalated")
+    private Boolean escalated;
+
+    @Column(name = "escalated_at")
+    private Instant escalatedAt;
+
+    @Column(name = "escalated_to_role")
+    private String escalatedToRole;
+
+    @Column(name = "escalation_reason")
+    private String escalationReason;
+
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", insertable = false, updatable = false)
+    private Instant updatedAt;
 }

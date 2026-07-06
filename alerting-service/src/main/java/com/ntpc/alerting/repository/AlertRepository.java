@@ -20,11 +20,11 @@ public interface AlertRepository extends JpaRepository<AlertEntity, UUID> {
      * (for deduplication purposes).
      */
     @Query(value = """
-            SELECT * FROM alerts
+            SELECT * FROM alert_events
             WHERE sensor_id = :sensorId
               AND severity = :severity
               AND resolved_at IS NULL
-            ORDER BY triggered_at DESC
+            ORDER BY fired_at DESC
             LIMIT 1
             """, nativeQuery = true)
     Optional<AlertEntity> findActiveAlertBySensorAndSeverity(
@@ -36,7 +36,7 @@ public interface AlertRepository extends JpaRepository<AlertEntity, UUID> {
      * These are candidates for auto-resolution.
      */
     @Query(value = """
-            SELECT * FROM alerts
+            SELECT * FROM alert_events
             WHERE resolved_at IS NULL
               AND last_seen_at < :cutoff
             """, nativeQuery = true)
@@ -47,7 +47,7 @@ public interface AlertRepository extends JpaRepository<AlertEntity, UUID> {
      */
     @Modifying
     @Query(value = """
-            UPDATE alerts SET resolved_at = :resolvedAt
+            UPDATE alert_events SET resolved_at = :resolvedAt
             WHERE resolved_at IS NULL
               AND last_seen_at < :cutoff
             """, nativeQuery = true)

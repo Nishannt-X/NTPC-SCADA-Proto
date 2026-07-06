@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 @Entity
-@Table(name = "audit_logs")
+@Table(name = "audit_log")
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,20 +17,45 @@ import java.time.Instant;
 public class AuditLogEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "audit_id")
+    private Long auditId;
 
-    @Column(nullable = false)
-    private String username;
+    @Column(name = "actor", nullable = false)
+    private String actor;
 
-    @Column(nullable = false)
-    private String action;
+    @Column(name = "actor_role", nullable = false)
+    private String actorRole;
 
-    @Column(nullable = false)
-    private String target;
+    @Column(name = "action_timestamp", insertable = false, updatable = false)
+    private Instant actionTimestamp;
 
-    @Column
+    @Column(name = "action_type", nullable = false)
+    private String actionType;
+
+    @Column(name = "resource_type", nullable = false)
+    private String resourceType;
+
+    @Column(name = "resource_id", nullable = false)
+    private String resourceId;
+
+    @Column(name = "previous_state")
+    private String previousState;
+
+    @Column(name = "new_state")
+    private String newState;
+
+    @Column(name = "details")
     private String details;
 
-    @Column(name = "timestamp", insertable = false, updatable = false)
-    private Instant timestamp;
+    @Column(name = "ip_address")
+    private String ipAddress;
+
+    @Column(name = "session_id")
+    private String sessionId;
+
+    @Column(name = "unit")
+    private String unit;
+
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private Instant createdAt;
 }

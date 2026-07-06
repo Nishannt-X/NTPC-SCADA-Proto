@@ -39,9 +39,11 @@ public class AlertLifecycleController {
 
     private void logAudit(String action, String target, String details) {
         AuditLogEntity log = AuditLogEntity.builder()
-                .username(getCurrentUser())
-                .action(action)
-                .target(target)
+                .actor(getCurrentUser())
+                .actorRole("ROLE_OPERATOR")
+                .actionType(action)
+                .resourceType("ALERT")
+                .resourceId(target)
                 .details(details)
                 .build();
         auditLogRepository.save(log);
@@ -54,7 +56,7 @@ public class AlertLifecycleController {
         
         alert.setAcknowledgedBy(getCurrentUser());
         alert.setAcknowledgedAt(Instant.now());
-        alert.setNotes(request.getNotes());
+        alert.setAckNotes(request.getNotes());
         alertRepository.save(alert);
         
         logAudit("ACKNOWLEDGE_ALERT", alertId.toString(), "Notes: " + request.getNotes());
@@ -81,10 +83,10 @@ public class AlertLifecycleController {
         ThresholdOverrideEntity override = ThresholdOverrideEntity.builder()
                 .sensorId(sensorId)
                 .sensorType(request.getSensorType())
-                .newWarn(request.getNewWarn())
-                .newCrit(request.getNewCrit())
+                .newWarning(request.getNewWarn())
+                .newCritical(request.getNewCrit())
                 .reason(request.getReason())
-                .createdBy(getCurrentUser())
+                .initiatedBy(getCurrentUser())
                 .expiresAt(expiresAt)
                 .build();
                 

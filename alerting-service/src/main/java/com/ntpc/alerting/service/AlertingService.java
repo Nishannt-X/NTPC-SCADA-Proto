@@ -8,12 +8,13 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,9 +31,13 @@ import java.util.UUID;
 public class AlertingService {
 
     private final AlertRepository alertRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final Counter alertsPersistedCounter;
     private final Counter alertsDeduplicatedCounter;
     private final Counter alertsResolvedCounter;
+
+    @Value("${alerting.lifecycle-events-topic:alert-lifecycle-events}")
+    private String lifecycleTopic;
 
     @Value("${alerting.dedup-window-minutes}")
     private int dedupWindowMinutes;
@@ -40,8 +45,9 @@ public class AlertingService {
     @Value("${alerting.auto-resolve-window-minutes}")
     private int autoResolveWindowMinutes;
 
-    public AlertingService(AlertRepository alertRepository, MeterRegistry meterRegistry) {
+    public AlertingService(AlertRepository alertRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate) {
         this.alertRepository = alertRepository;
+        this.kafkaTemplate = kafkaTemplate;
         this.alertsPersistedCounter = Counter.builder("alerting.alerts.persisted")
                 .description("Total new alerts persisted")
                 .register(meterRegistry);
@@ -76,7 +82,7 @@ public class AlertingService {
             int dedupWindowSeconds = severity.equalsIgnoreCase("CRITICAL") ? 60 : 300;
             Instant dedupCutoff = Instant.now().minus(dedupWindowSeconds, ChronoUnit.SECONDS);
 
-            if (existing.getTriggeredAt().isAfter(dedupCutoff)) {
+            if (existing.getFiredAt().isAfter(dedupCutoff)) {
                 // Within dedup window — just update lastSeenAt and value
                 existing.setLastSeenAt(Instant.now());
                 existing.setValue(alert.getValue());
@@ -99,13 +105,24 @@ public class AlertingService {
                 .threshold(alert.getThreshold())
                 .severity(severity)
                 .message(alert.getMessage())
-                .triggeredAt(alert.getTimestamp())
+                .firedAt(alert.getTimestamp())
                 .lastSeenAt(Instant.now())
                 .resolvedAt(null)
                 .build();
 
         alertRepository.save(entity);
         alertsPersistedCounter.increment();
+
+        // Emit lifecycle event
+        com.ntpc.alerting.dto.AlertLifecycleEvent event = com.ntpc.alerting.dto.AlertLifecycleEvent.builder()
+                .alertId(entity.getAlertId())
+                .sensorId(sensorId)
+                .eventType("ALERT_CREATED")
+                .severity(severity)
+                .details(alert.getMessage())
+                .timestamp(Instant.now())
+                .build();
+        kafkaTemplate.send(lifecycleTopic, sensorId, event);
 
         // --- Stubbed notification ---
         log.warn("[NOTIFY] {} alert for {}: {}",
@@ -119,17 +136,34 @@ public class AlertingService {
      * Auto-resolution: resolve alerts whose last_seen_at is older than the configured window.
      * This means the threshold is no longer being breached.
      */
-    @Scheduled(fixedDelayString = "${alerting.auto-resolve-check-interval-ms}")
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${alerting.auto-resolve-check-interval-ms}")
     @Transactional
     public void autoResolveStaleAlerts() {
         Instant cutoff = Instant.now().minus(autoResolveWindowMinutes, ChronoUnit.MINUTES);
         Instant now = Instant.now();
+
+        List<AlertEntity> staleAlerts = alertRepository.findStaleUnresolvedAlerts(cutoff);
+        if (staleAlerts.isEmpty()) {
+            return;
+        }
 
         int resolved = alertRepository.resolveStaleAlerts(cutoff, now);
 
         if (resolved > 0) {
             alertsResolvedCounter.increment(resolved);
             log.info("[RESOLVE] Auto-resolved {} stale alerts (last seen before {})", resolved, cutoff);
+            
+            for (AlertEntity stale : staleAlerts) {
+                com.ntpc.alerting.dto.AlertLifecycleEvent event = com.ntpc.alerting.dto.AlertLifecycleEvent.builder()
+                        .alertId(stale.getAlertId())
+                        .sensorId(stale.getSensorId())
+                        .eventType("ALERT_RESOLVED")
+                        .severity(stale.getSeverity())
+                        .details("Auto-resolved due to inactivity")
+                        .timestamp(now)
+                        .build();
+                kafkaTemplate.send(lifecycleTopic, stale.getSensorId(), event);
+            }
         }
     }
 }

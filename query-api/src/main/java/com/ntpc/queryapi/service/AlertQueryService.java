@@ -66,7 +66,7 @@ public class AlertQueryService {
                 .threshold(entity.getThreshold())
                 .severity(entity.getSeverity())
                 .message(entity.getMessage())
-                .timestamp(entity.getTriggeredAt())
+                .timestamp(entity.getFiredAt())
                 .lastSeenAt(entity.getLastSeenAt())
                 .resolvedAt(entity.getResolvedAt())
                 .acknowledgedBy(entity.getAcknowledgedBy())
