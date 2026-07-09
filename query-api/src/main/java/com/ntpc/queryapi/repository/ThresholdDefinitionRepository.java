@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ThresholdDefinitionRepository extends JpaRepository<ThresholdDefinitionEntity, java.util.UUID> {
+    java.util.List<ThresholdDefinitionEntity> findBySensorId(String sensorId);
 }

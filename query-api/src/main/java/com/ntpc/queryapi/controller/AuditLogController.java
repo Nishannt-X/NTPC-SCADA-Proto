@@ -28,4 +28,11 @@ public class AuditLogController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @GetMapping("/operators/{username}/actions")
+    public List<AuditLogEntity> getOperatorActions(@PathVariable String username) {
+        return repository.findAll().stream()
+                .filter(log -> username.equals(log.getActor()))
+                .toList();
+    }
 }

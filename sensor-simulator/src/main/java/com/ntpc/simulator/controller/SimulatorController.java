@@ -57,7 +57,29 @@ public class SimulatorController {
                 "durationCycles", request.getDurationCycles()
         ));
     }
+    @PostMapping("/inject-scenario")
+    public ResponseEntity<Map<String, Object>> injectScenario(@RequestBody Map<String, Object> request) {
+        String scenarioId = (String) request.get("scenarioId");
+        String unit = (String) request.get("unit");
+        int durationCycles = (Integer) request.get("durationCycles");
+        
+        log.info("[SCENARIO REQUEST] scenarioId={} unit={} durationCycles={}", scenarioId, unit, durationCycles);
+        
+        List<String> affectedSensors = simulatorService.injectScenario(scenarioId, unit, durationCycles);
+        
+        if (affectedSensors.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Unknown scenario or unit"
+            ));
+        }
 
+        return ResponseEntity.ok(Map.of(
+                "status", "scenario_injected",
+                "affectedSensors", affectedSensors,
+                "scenarioId", scenarioId
+        ));
+    }
     /**
      * Health/status check for the simulator.
      */

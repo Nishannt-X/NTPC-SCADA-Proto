@@ -50,4 +50,27 @@ public class SimulatorProxyController {
             ));
         }
     }
+
+    /**
+     * POST /api/v1/simulator/inject-scenario
+     * Proxies the request to the sensor-simulator service.
+     */
+    @PostMapping("/simulator/inject-scenario")
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<Map<String, Object>> injectScenario(@RequestBody Map<String, Object> request) {
+        String url = simulatorBaseUrl + "/simulator/inject-scenario";
+        log.info("[PROXY] Forwarding scenario injection to simulator: {}", url);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
+            return ResponseEntity.status(response.getStatusCode())
+                    .body(response.getBody());
+        } catch (Exception e) {
+            log.error("[PROXY ERROR] Failed to reach simulator: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "Failed to reach sensor-simulator: " + e.getMessage()
+            ));
+        }
+    }
 }

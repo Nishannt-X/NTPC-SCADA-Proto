@@ -26,6 +26,9 @@ spring:
     table: flyway_schema_history_query
     baseline-version: 0
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
   # Redis (Phase 4 — disabled until Redis is needed)
   data:
     redis:

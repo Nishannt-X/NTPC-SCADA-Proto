@@ -18,9 +18,9 @@ import java.util.UUID;
 public class ThresholdOverrideEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "override_id")
-    private UUID overrideId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
 
     @Column(name = "sensor_id", nullable = false)
     private String sensorId;

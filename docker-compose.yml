@@ -187,6 +187,7 @@ services:
       DB_PASSWORD: telemetry_pass
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SIMULATOR_BASE_URL: http://sensor-simulator:8081
       CORS_ORIGINS: "*"
       CACHE_TTL: 5
@@ -215,6 +216,13 @@ services:
       echo "Waiting for Kafka to be ready...";
       sleep 15;
       echo "Creating topics...";
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.fuel --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.boiler --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.turbine --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.water --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.electrical --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.emissions --config retention.ms=604800000;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic sensor-alerts --config retention.ms=604800000;
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic alert-lifecycle-events --config retention.ms=604800000;
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic threshold-override-events --config retention.ms=604800000;
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic maintenance-events --config retention.ms=2592000000;

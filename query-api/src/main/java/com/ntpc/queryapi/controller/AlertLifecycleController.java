@@ -19,25 +19,38 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
+@org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('OPERATOR', 'SHIFT_CHARGE_ENGINEER', 'MAINTENANCE', 'ADMIN')")
 public class AlertLifecycleController {
 
     private final AlertRepository alertRepository;
     private final AuditLogRepository auditLogRepository;
     private final ThresholdOverrideRepository thresholdOverrideRepository;
+    private final com.ntpc.queryapi.service.CorrelationService correlationService;
+    private final com.ntpc.queryapi.service.SLAService slaService;
+    private final org.springframework.kafka.core.KafkaTemplate<String, String> kafkaTemplate;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public AlertLifecycleController(AlertRepository alertRepository,
                                     AuditLogRepository auditLogRepository,
-                                    ThresholdOverrideRepository thresholdOverrideRepository) {
+                                    ThresholdOverrideRepository thresholdOverrideRepository,
+                                    com.ntpc.queryapi.service.CorrelationService correlationService,
+                                    com.ntpc.queryapi.service.SLAService slaService,
+                                    org.springframework.kafka.core.KafkaTemplate<String, String> kafkaTemplate,
+                                    com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.alertRepository = alertRepository;
         this.auditLogRepository = auditLogRepository;
         this.thresholdOverrideRepository = thresholdOverrideRepository;
+        this.correlationService = correlationService;
+        this.slaService = slaService;
+        this.kafkaTemplate = kafkaTemplate;
+        this.objectMapper = objectMapper;
     }
 
     private String getCurrentUser() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
     }
 
-    private void logAudit(String action, String target, String details) {
+    private void logAudit(String action, String target, String details, String unit) {
         AuditLogEntity log = AuditLogEntity.builder()
                 .actor(getCurrentUser())
                 .actorRole("ROLE_OPERATOR")
@@ -45,6 +58,7 @@ public class AlertLifecycleController {
                 .resourceType("ALERT")
                 .resourceId(target)
                 .details(details)
+                .unit(unit)
                 .build();
         auditLogRepository.save(log);
     }
@@ -54,12 +68,19 @@ public class AlertLifecycleController {
         AlertEntity alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alert not found"));
         
+        if (alert.getResolvedAt() != null) {
+            return ResponseEntity.badRequest().body("Cannot acknowledge an already resolved alert.");
+        }
+        if (alert.getAcknowledgedAt() != null) {
+            return ResponseEntity.badRequest().body("Alert is already acknowledged.");
+        }
+        
         alert.setAcknowledgedBy(getCurrentUser());
         alert.setAcknowledgedAt(Instant.now());
         alert.setAckNotes(request.getNotes());
         alertRepository.save(alert);
         
-        logAudit("ACKNOWLEDGE_ALERT", alertId.toString(), "Notes: " + request.getNotes());
+        logAudit("ACKNOWLEDGE_ALERT", alertId.toString(), "Notes: " + request.getNotes(), alert.getUnit());
         return ResponseEntity.ok().build();
     }
 
@@ -72,7 +93,7 @@ public class AlertLifecycleController {
         alert.setSuppressedUntil(suppressedUntil);
         alertRepository.save(alert);
         
-        logAudit("SUPPRESS_ALERT", alertId.toString(), "Suppressed until: " + suppressedUntil);
+        logAudit("SUPPRESS_ALERT", alertId.toString(), "Suppressed until: " + suppressedUntil, alert.getUnit());
         return ResponseEntity.ok().build();
     }
 
@@ -86,35 +107,108 @@ public class AlertLifecycleController {
                 .newWarning(request.getNewWarn())
                 .newCritical(request.getNewCrit())
                 .reason(request.getReason())
+                .durationHours(request.getDurationHours())
                 .initiatedBy(getCurrentUser())
                 .expiresAt(expiresAt)
                 .build();
                 
         thresholdOverrideRepository.save(override);
-        logAudit("OVERRIDE_THRESHOLD", sensorId, "Warn: " + request.getNewWarn() + " Crit: " + request.getNewCrit() + " Reason: " + request.getReason());
         
-        // Notify anomaly-detection-service (runs on port 8083 locally/docker)
+        // Try to determine unit from sensorId if possible (e.g. U1-TEMP-01 -> UNIT_1)
+        String unit = sensorId.startsWith("U1") ? "UNIT_1" : (sensorId.startsWith("U2") ? "UNIT_2" : null);
+        logAudit("OVERRIDE_THRESHOLD", sensorId, "Warn: " + request.getNewWarn() + " Crit: " + request.getNewCrit() + " Reason: " + request.getReason(), unit);
+        
+        // Emit Kafka event instead of synchronous REST call
+        java.util.Map<String, Object> eventPayload = new java.util.HashMap<>();
+        eventPayload.put("sensorId", sensorId);
+        eventPayload.put("sensorType", request.getSensorType());
+        eventPayload.put("newWarn", request.getNewWarn());
+        eventPayload.put("newCrit", request.getNewCrit());
+        eventPayload.put("expiresAt", expiresAt.toString());
+        eventPayload.put("durationHours", request.getDurationHours());
+        eventPayload.put("reason", request.getReason());
+        eventPayload.put("initiatedBy", getCurrentUser());
+        
         try {
-            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
-            String anomalyServiceUrl = "http://anomaly-detection-service:8083/api/internal/threshold-overrides";
-            
-            // For local development where we might run everything on localhost:
-            if (System.getenv("ANOMALY_DETECTION_URL") != null) {
-                anomalyServiceUrl = System.getenv("ANOMALY_DETECTION_URL") + "/api/internal/threshold-overrides";
-            }
-            
-            // Re-use the request object as the payload, plus inject sensorId
-            java.util.Map<String, Object> payload = new java.util.HashMap<>();
-            payload.put("sensorId", sensorId);
-            payload.put("sensorType", request.getSensorType());
-            payload.put("newWarn", request.getNewWarn());
-            payload.put("newCrit", request.getNewCrit());
-            
-            restTemplate.postForEntity(anomalyServiceUrl, payload, Void.class);
+            String jsonPayload = objectMapper.writeValueAsString(eventPayload);
+            kafkaTemplate.send("threshold-override-events", sensorId, jsonPayload);
         } catch (Exception e) {
-            System.err.println("Failed to notify anomaly-detection-service: " + e.getMessage());
+            throw new RuntimeException("Failed to serialize kafka event", e);
         }
         
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/alerts/{alertId}/resolve")
+    public ResponseEntity<?> resolveAlert(@PathVariable java.util.UUID alertId, @RequestBody com.ntpc.queryapi.dto.ResolveRequest request) {
+        AlertEntity alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new RuntimeException("Alert not found"));
+                
+        if (alert.getResolvedAt() != null) {
+            return ResponseEntity.badRequest().body("Alert is already resolved.");
+        }
+        
+        alert.setResolvedBy(getCurrentUser());
+        alert.setResolvedAt(Instant.now());
+        alert.setResolutionType(request.getResolutionType());
+        alert.setResolutionNotes(request.getNotes());
+        alertRepository.save(alert);
+        
+        // Evaluate SLA violations on resolution
+        slaService.checkAndRecordViolations(alert);
+        
+        logAudit("RESOLVE_ALERT", alertId.toString(), "Type: " + request.getResolutionType() + " Notes: " + request.getNotes(), alert.getUnit());
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/alerts/sla-metrics")
+    public ResponseEntity<java.util.Map<String, Object>> getSlaMetrics(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String unit) {
+        
+        Instant effectiveTo = (to != null && !to.isEmpty()) ? Instant.parse(to) : Instant.now();
+        Instant effectiveFrom = (from != null && !from.isEmpty()) ? Instant.parse(from) : effectiveTo.minus(24, ChronoUnit.HOURS);
+        
+        com.ntpc.queryapi.repository.AlertRepository.SlaMetricsProjection stats = 
+            alertRepository.getSlaMetrics(effectiveFrom, effectiveTo, unit);
+
+        long totalAlerts = stats.getTotalAlerts() != null ? stats.getTotalAlerts() : 0;
+        long ackBreaches = stats.getAckBreachCount() != null ? stats.getAckBreachCount() : 0;
+        long resBreaches = stats.getResolveBreachCount() != null ? stats.getResolveBreachCount() : 0;
+        
+        double compliance = 1.0;
+        if (totalAlerts > 0) {
+            compliance = 1.0 - ((double)(ackBreaches + resBreaches) / (totalAlerts * 2.0));
+            compliance = Math.max(0.0, compliance);
+        }
+        
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+        response.put("avgAckSeconds", stats.getAvgAckSeconds() != null ? stats.getAvgAckSeconds() : 0.0);
+        response.put("avgResolveSeconds", stats.getAvgResolveSeconds() != null ? stats.getAvgResolveSeconds() : 0.0);
+        response.put("mttrSeconds", stats.getAvgResolveSeconds() != null ? stats.getAvgResolveSeconds() : 0.0);
+        response.put("ackBreachCount", ackBreaches);
+        response.put("resolveBreachCount", resBreaches);
+        response.put("slaCompliance", compliance);
+        
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/alerts/{alertId}/analysis")
+    public ResponseEntity<java.util.Map<String, Object>> getRootCauseAnalysis(@PathVariable java.util.UUID alertId) {
+        AlertEntity alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new RuntimeException("Alert not found"));
+                
+        java.util.List<com.ntpc.queryapi.entity.SensorCorrelationEntity> correlations = correlationService.findByTrigger(alert.getSensorId());
+        
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+        response.put("alertId", alertId);
+        response.put("trigger", alert);
+        
+        java.util.Map<String, Object> rca = new java.util.HashMap<>();
+        rca.put("likelyRootCauses", correlations);
+        response.put("rootCauseAnalysis", rca);
+        
+        return ResponseEntity.ok(response);
     }
 }

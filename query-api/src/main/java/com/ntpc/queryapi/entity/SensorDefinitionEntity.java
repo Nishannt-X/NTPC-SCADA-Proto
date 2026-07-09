@@ -34,4 +34,7 @@ public class SensorDefinitionEntity {
     @Column(name = "is_active") private Boolean isActive;
     @Column(name = "status") private String status;
     @Column(name = "status_since") private Instant statusSince;
+
+    @Transient private Double warningThreshold;
+    @Transient private Double criticalThreshold;
 }

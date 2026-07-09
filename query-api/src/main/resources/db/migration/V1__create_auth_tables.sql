@@ -24,11 +24,11 @@ INSERT INTO app_roles (name) VALUES ('ROLE_OPERATOR'), ('ROLE_SUPERVISOR'), ('RO
 
 -- Seed default users (password is same as username, hashed using BCrypt)
 -- password: operator
-INSERT INTO app_users (username, password_hash) VALUES ('operator', '$2a$10$wYQWbQ4oU7I6I2k3j9vDqOV0m7d5T4QZ5c2Z8V8hG8n0tF7b1pP5i') ON CONFLICT DO NOTHING;
+INSERT INTO app_users (username, password_hash) VALUES ('operator', '$2b$12$Kk.cOPpB9U.B7YnJ6Xh2xOVU/xI0S0G2sFz.z.FzI8O.qZ/G/2Zk6') ON CONFLICT DO NOTHING;
 -- password: supervisor
-INSERT INTO app_users (username, password_hash) VALUES ('supervisor', '$2a$10$wYQWbQ4oU7I6I2k3j9vDqOV0m7d5T4QZ5c2Z8V8hG8n0tF7b1pP5i') ON CONFLICT DO NOTHING;
+INSERT INTO app_users (username, password_hash) VALUES ('supervisor', '$2b$12$Kk.cOPpB9U.B7YnJ6Xh2xOVU/xI0S0G2sFz.z.FzI8O.qZ/G/2Zk6') ON CONFLICT DO NOTHING;
 -- password: admin
-INSERT INTO app_users (username, password_hash) VALUES ('admin', '$2a$10$wYQWbQ4oU7I6I2k3j9vDqOV0m7d5T4QZ5c2Z8V8hG8n0tF7b1pP5i') ON CONFLICT DO NOTHING;
+INSERT INTO app_users (username, password_hash) VALUES ('admin', '$2b$12$Kk.cOPpB9U.B7YnJ6Xh2xOVU/xI0S0G2sFz.z.FzI8O.qZ/G/2Zk6') ON CONFLICT DO NOTHING;
 
 -- Assign roles to default users
 INSERT INTO user_roles (user_id, role_id)

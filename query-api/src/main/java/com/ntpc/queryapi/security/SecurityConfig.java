@@ -47,6 +47,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/v1/sensor-definitions").permitAll()
+                        .requestMatchers("/api/v1/sensor-definitions/**").permitAll()
                         // Operator only endpoints
                         .requestMatchers("/api/v1/alerts/*/acknowledge").hasAuthority("ROLE_OPERATOR")
                         .requestMatchers("/api/v1/alerts/*/suppress").hasAuthority("ROLE_OPERATOR")

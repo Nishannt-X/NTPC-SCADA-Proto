@@ -3,6 +3,7 @@ package com.ntpc.anomaly.service;
 import com.ntpc.anomaly.config.ThresholdConfig;
 import com.ntpc.anomaly.dto.Alert;
 import com.ntpc.anomaly.dto.SensorReading;
+import com.ntpc.anomaly.dto.TelemetryEnvelope;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -16,14 +17,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Anomaly detection engine.
- * Evaluates each incoming sensor reading against configurable thresholds.
- * Requires consecutive breaches before firing an alert (noise resistance).
- *
- * This service is completely independent from the Ingestion Service — it reads
- * only from the live Kafka stream, not from the database.
- */
 @Slf4j
 @Service
 public class AnomalyDetectionService {
@@ -33,16 +26,14 @@ public class AnomalyDetectionService {
     private final Counter alertsPublishedCounter;
     private final Counter messagesProcessedCounter;
 
-    // Tracks consecutive breach count per sensorId
     private final Map<String, Integer> breachCounters = new ConcurrentHashMap<>();
-
-    // Cache of active overrides per sensorId
     private final Map<String, com.ntpc.anomaly.dto.ThresholdOverrideRequest> activeOverrides = new ConcurrentHashMap<>();
+    private final Map<String, Instant> suppressions = new ConcurrentHashMap<>();
 
-    @Value("${anomaly.consecutive-breaches-required}")
+    @Value("${anomaly.consecutive-breaches-required:3}")
     private int consecutiveBreachesRequired;
 
-    @Value("${anomaly.alerts-topic}")
+    @Value("${anomaly.alerts-topic:sensor-alerts}")
     private String alertsTopic;
 
     public void applyOverride(com.ntpc.anomaly.dto.ThresholdOverrideRequest override) {
@@ -55,58 +46,134 @@ public class AnomalyDetectionService {
         this.thresholdConfig = thresholdConfig;
         this.kafkaTemplate = kafkaTemplate;
         this.alertsPublishedCounter = Counter.builder("anomaly.alerts.published")
-                .description("Total alerts published to sensor-alerts topic")
                 .register(meterRegistry);
         this.messagesProcessedCounter = Counter.builder("anomaly.messages.processed")
-                .description("Total sensor readings processed")
                 .register(meterRegistry);
     }
 
-    @KafkaListener(topics = "${anomaly.readings-topic}", groupId = "anomaly-detection-group")
-    public void evaluate(SensorReading reading) {
+    @KafkaListener(topicPattern = "telemetry\\..*", groupId = "anomaly-detection-group")
+    public void evaluate(TelemetryEnvelope envelope) {
+        if (envelope == null || envelope.getReadings() == null) return;
+        
+        for (SensorReading reading : envelope.getReadings()) {
+            evaluateReading(reading);
+        }
+    }
+
+    @lombok.Data
+    public static class SensorThresholds {
+        private double warning;
+        private double critical;
+        private boolean inverse;
+    }
+
+    private final Map<String, SensorThresholds> dynamicThresholds = new ConcurrentHashMap<>();
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 10000)
+    public void refreshThresholds() {
+        try {
+            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+            org.springframework.http.ResponseEntity<java.util.List> response = restTemplate.getForEntity("http://query-api:8080/api/v1/sensor-definitions", java.util.List.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                for (Object item : response.getBody()) {
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    String id = (String) map.get("sensorId");
+                    Object warnObj = map.get("warningThreshold");
+                    Object critObj = map.get("criticalThreshold");
+                    if (id != null && warnObj != null && critObj != null) {
+                        double warn = Double.parseDouble(warnObj.toString());
+                        double crit = Double.parseDouble(critObj.toString());
+                        SensorThresholds st = new SensorThresholds();
+                        st.setWarning(warn);
+                        st.setCritical(crit);
+                        st.setInverse(crit < warn);
+                        dynamicThresholds.put(id, st);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch thresholds from query-api: {}", e.getMessage());
+        }
+    }
+
+    private void evaluateReading(SensorReading reading) {
         messagesProcessedCounter.increment();
         String sensorId = reading.getSensorId();
         
         double warnThreshold;
         double critThreshold;
+        boolean inverse = false;
 
-        // Check for active override first
         com.ntpc.anomaly.dto.ThresholdOverrideRequest override = activeOverrides.get(sensorId);
         if (override != null) {
             warnThreshold = override.getNewWarn();
             critThreshold = override.getNewCrit();
+            inverse = critThreshold < warnThreshold;
         } else {
-            ThresholdConfig.ThresholdPair thresholds = thresholdConfig.getThresholds().get(reading.getSensorType());
-            if (thresholds == null) {
-                log.warn("[ANOMALY] No thresholds configured for sensorType={}", reading.getSensorType());
-                return;
+            SensorThresholds dyn = dynamicThresholds.get(sensorId);
+            if (dyn != null) {
+                warnThreshold = dyn.getWarning();
+                critThreshold = dyn.getCritical();
+                inverse = dyn.isInverse();
+            } else {
+                if (dynamicThresholds.isEmpty()) {
+                    return; // Wait for thresholds to load on startup
+                }
+                ThresholdConfig.ThresholdPair thresholds = thresholdConfig.getThresholds().get(reading.getSensorType());
+                if (thresholds == null) return; // Ignore unconfigured types
+                warnThreshold = thresholds.getWarning();
+                critThreshold = thresholds.getCritical();
+                inverse = false;
             }
-            warnThreshold = thresholds.getWarning();
-            critThreshold = thresholds.getCritical();
         }
 
         String severity = null;
         double threshold = 0;
 
-        // Check CRITICAL first (higher severity takes precedence)
-        if (reading.getValue() > critThreshold) {
-            severity = "CRITICAL";
-            threshold = critThreshold;
-        } else if (reading.getValue() > warnThreshold) {
-            severity = "WARNING";
-            threshold = warnThreshold;
+        if (inverse) {
+            if (reading.getValue() <= critThreshold) {
+                severity = "CRITICAL";
+                threshold = critThreshold;
+            } else if (reading.getValue() <= warnThreshold) {
+                severity = "WARNING";
+                threshold = warnThreshold;
+            }
+        } else {
+            if (reading.getValue() >= critThreshold) {
+                severity = "CRITICAL";
+                threshold = critThreshold;
+            } else if (reading.getValue() >= warnThreshold) {
+                severity = "WARNING";
+                threshold = warnThreshold;
+            }
         }
 
         if (severity != null) {
-            // Threshold breached — increment consecutive counter
             int breachCount = breachCounters.merge(sensorId, 1, Integer::sum);
-
-            log.debug("[ANOMALY] sensorId={} value={} threshold={} severity={} breachCount={}/{}",
-                    sensorId, reading.getValue(), threshold, severity,
-                    breachCount, consecutiveBreachesRequired);
+            
+            // ISA-18.2 Cascade Suppression Engine
+            if (severity.equals("CRITICAL")) {
+                if (sensorId.contains("BFP_BEARING_VIB")) {
+                    // Suppress steam pressure and drum level for 5 minutes
+                    String unit = reading.getUnit();
+                    suppressions.put(unit.equals("UNIT_1") ? "U1-MAIN_STEAM_PRES" : "U2-MAIN_STEAM_PRES", Instant.now().plusSeconds(300));
+                    suppressions.put(unit.equals("UNIT_1") ? "U1-DRUM_LEVEL" : "U2-DRUM_LEVEL", Instant.now().plusSeconds(300));
+                } else if (sensorId.contains("MILL_MOTOR_CURRENT")) {
+                    // Suppress FEGT and Main Steam Temp
+                    String unit = reading.getUnit();
+                    suppressions.put(unit.equals("UNIT_1") ? "U1-FEGT" : "U2-FEGT", Instant.now().plusSeconds(300));
+                    suppressions.put(unit.equals("UNIT_1") ? "U1-MAIN_STEAM_TEMP" : "U2-MAIN_STEAM_TEMP", Instant.now().plusSeconds(300));
+                }
+            }
 
             if (breachCount >= consecutiveBreachesRequired) {
-                // Fire alert
+                // Check if suppressed
+                Instant suppressionExpiry = suppressions.get(sensorId);
+                if (suppressionExpiry != null && Instant.now().isBefore(suppressionExpiry)) {
+                    log.debug("[SUPPRESSED] Cascade logic suppressed alert for {}", sensorId);
+                    return;
+                }
+
                 Alert alert = Alert.builder()
                         .alertId(UUID.randomUUID().toString())
                         .sensorId(sensorId)
@@ -119,26 +186,10 @@ public class AnomalyDetectionService {
                         .message(buildAlertMessage(reading, severity, threshold))
                         .build();
 
-                kafkaTemplate.send(alertsTopic, sensorId, alert)
-                        .whenComplete((result, ex) -> {
-                            if (ex != null) {
-                                log.error("[ANOMALY] Failed to publish alert for sensorId={}: {}",
-                                        sensorId, ex.getMessage());
-                            }
-                        });
-
+                kafkaTemplate.send(alertsTopic, sensorId, alert);
                 alertsPublishedCounter.increment();
-
-                log.warn("[ALERT FIRED] sensorId={} unit={} type={} value={} threshold={} severity={}",
-                        sensorId, reading.getUnit(), reading.getSensorType(),
-                        reading.getValue(), threshold, severity);
-
-                // Counter is NOT reset here so that alerts are continuously emitted
-                // to Kafka every cycle while the breach persists. The AlertingService 
-                // will handle frequency deduplication.
             }
         } else {
-            // Value within normal range — reset consecutive breach counter
             if (breachCounters.containsKey(sensorId)) {
                 breachCounters.put(sensorId, 0);
             }

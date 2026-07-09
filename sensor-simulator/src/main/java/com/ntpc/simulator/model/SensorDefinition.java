@@ -20,4 +20,7 @@ public class SensorDefinition {
     private final String unitOfMeasure;   // °C, bar, mm, rpm, %
     private final double minBound;        // Physical minimum
     private final double maxBound;        // Physical maximum
+    private final double warnThreshold;   // Warning limit
+    private final double critThreshold;   // Critical limit
+    private final String segment;
 }

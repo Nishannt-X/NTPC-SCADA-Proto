@@ -95,6 +95,18 @@ public class AlertingService {
             }
         }
 
+        // --- Calculate SLA targets (Mock logic or direct logic) ---
+        Instant ackDeadline = Instant.now().plus(15, ChronoUnit.MINUTES);
+        Instant resDeadline = Instant.now().plus(60, ChronoUnit.MINUTES);
+
+        // --- Escalate on shared systems ---
+        boolean escalated = false;
+        String escalationReason = null;
+        if (severity.equalsIgnoreCase("CRITICAL") && alert.getUnit().equalsIgnoreCase("SHARED")) {
+            escalated = true;
+            escalationReason = "CRITICAL on shared system impacts multiple units";
+        }
+
         // --- Persist new alert ---
         AlertEntity entity = AlertEntity.builder()
                 .alertId(UUID.fromString(alert.getAlertId()))
@@ -108,6 +120,10 @@ public class AlertingService {
                 .firedAt(alert.getTimestamp())
                 .lastSeenAt(Instant.now())
                 .resolvedAt(null)
+                .ackDeadline(ackDeadline)
+                .resolutionDeadline(resDeadline)
+                .escalated(escalated)
+                .escalationReason(escalationReason)
                 .build();
 
         alertRepository.save(entity);

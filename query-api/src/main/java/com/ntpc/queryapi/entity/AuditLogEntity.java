@@ -17,7 +17,7 @@ import java.time.Instant;
 public class AuditLogEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "audit_id")
+    @Column(name = "id")
     private Long auditId;
 
     @Column(name = "actor", nullable = false)
@@ -38,10 +38,12 @@ public class AuditLogEntity {
     @Column(name = "resource_id", nullable = false)
     private String resourceId;
 
-    @Column(name = "previous_state")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "previous_state", columnDefinition = "jsonb")
     private String previousState;
 
-    @Column(name = "new_state")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "new_state", columnDefinition = "jsonb")
     private String newState;
 
     @Column(name = "details")
