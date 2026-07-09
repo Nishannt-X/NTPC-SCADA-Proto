@@ -37,4 +37,7 @@ public class SensorDefinitionEntity {
 
     @Transient private Double warningThreshold;
     @Transient private Double criticalThreshold;
+    @Transient private Double currentWarning;
+    @Transient private Double currentCritical;
+    @Transient private Boolean isTempOverride;
 }

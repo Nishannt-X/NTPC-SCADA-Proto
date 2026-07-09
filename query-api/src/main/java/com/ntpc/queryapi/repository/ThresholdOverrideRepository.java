@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface ThresholdOverrideRepository extends JpaRepository<ThresholdOverrideEntity, Long> {
     List<ThresholdOverrideEntity> findBySensorId(String sensorId);
+    List<ThresholdOverrideEntity> findByExpiresAtAfter(java.time.Instant now);
 }

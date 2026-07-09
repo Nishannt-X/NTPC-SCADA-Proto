@@ -99,7 +99,10 @@ public class AlertLifecycleController {
 
     @PostMapping("/sensors/{sensorId}/override-threshold")
     public ResponseEntity<?> overrideThreshold(@PathVariable String sensorId, @RequestBody ThresholdOverrideRequest request) {
-        Instant expiresAt = Instant.now().plus(request.getDurationHours(), ChronoUnit.HOURS);
+        
+        Instant expiresAt = request.getDurationHours() == -1 
+            ? Instant.now().plus(9999, ChronoUnit.DAYS)
+            : Instant.now().plus(request.getDurationHours(), ChronoUnit.HOURS);
         
         ThresholdOverrideEntity override = ThresholdOverrideEntity.builder()
                 .sensorId(sensorId)
