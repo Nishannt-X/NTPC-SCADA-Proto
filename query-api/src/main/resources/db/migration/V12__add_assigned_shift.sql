@@ -1,0 +1,1 @@
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS assigned_shift INT DEFAULT NULL;

@@ -31,6 +31,17 @@ public class AppUser {
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "assigned_shift")
+    private Integer assignedShift;
+
+    @Transient
+    public Boolean getIsOnShift() {
+        if (assignedShift == null) return false;
+        int h = java.time.Instant.now().atZone(java.time.ZoneOffset.UTC).getHour();
+        int currentShift = (h >= 8 && h < 16) ? 1 : (h >= 16 && h < 24) ? 2 : 3;
+        return assignedShift == currentShift;
+    }
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

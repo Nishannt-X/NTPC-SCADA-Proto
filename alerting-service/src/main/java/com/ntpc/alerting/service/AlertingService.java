@@ -78,21 +78,15 @@ public class AlertingService {
                 return;
             }
 
-            // Dynamic dedup window based on severity
-            int dedupWindowSeconds = severity.equalsIgnoreCase("CRITICAL") ? 60 : 300;
-            Instant dedupCutoff = Instant.now().minus(dedupWindowSeconds, ChronoUnit.SECONDS);
+            // Unconditionally deduplicate if the alert is still active
+            existing.setLastSeenAt(Instant.now());
+            existing.setValue(alert.getValue());
+            alertRepository.save(existing);
+            alertsDeduplicatedCounter.increment();
 
-            if (existing.getFiredAt().isAfter(dedupCutoff)) {
-                // Within dedup window — just update lastSeenAt and value
-                existing.setLastSeenAt(Instant.now());
-                existing.setValue(alert.getValue());
-                alertRepository.save(existing);
-                alertsDeduplicatedCounter.increment();
-
-                log.info("[DEDUP] Suppressed duplicate alert for sensorId={} severity={} (existing alertId={})",
-                        sensorId, severity, existing.getAlertId());
-                return;
-            }
+            log.debug("[DEDUP] Suppressed duplicate alert for sensorId={} severity={} (existing alertId={})",
+                    sensorId, severity, existing.getAlertId());
+            return;
         }
 
         // --- Calculate SLA targets (Mock logic or direct logic) ---

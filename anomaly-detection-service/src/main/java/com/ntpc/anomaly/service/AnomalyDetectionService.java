@@ -170,8 +170,8 @@ public class AnomalyDetectionService {
                 // Check if suppressed
                 Instant suppressionExpiry = suppressions.get(sensorId);
                 if (suppressionExpiry != null && Instant.now().isBefore(suppressionExpiry)) {
-                    log.debug("[SUPPRESSED] Cascade logic suppressed alert for {}", sensorId);
-                    return;
+                    log.debug("[SUPPRESSED] Cascade logic marked alert as CONSEQUENTIAL for {}", sensorId);
+                    severity = "CONSEQUENTIAL";
                 }
 
                 Alert alert = Alert.builder()

@@ -53,7 +53,11 @@ public class AuthController {
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.toList());
 
-            return ResponseEntity.ok(new JwtAuthResponse(jwt, authentication.getName(), roles));
+            com.ntpc.queryapi.entity.AppUser appUser = userRepository.findByUsername(authentication.getName()).orElse(null);
+            Boolean isOnShift = appUser != null ? appUser.getIsOnShift() : false;
+            Integer assignedShift = appUser != null ? appUser.getAssignedShift() : null;
+
+            return ResponseEntity.ok(new JwtAuthResponse(jwt, authentication.getName(), roles, isOnShift, assignedShift));
         } catch (org.springframework.security.core.AuthenticationException ex) {
             return ResponseEntity.status(401).body("Invalid username or password");
         }

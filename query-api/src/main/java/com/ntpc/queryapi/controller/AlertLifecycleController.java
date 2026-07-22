@@ -173,12 +173,17 @@ public class AlertLifecycleController {
         Instant effectiveTo = (to != null && !to.isEmpty()) ? Instant.parse(to) : Instant.now();
         Instant effectiveFrom = (from != null && !from.isEmpty()) ? Instant.parse(from) : effectiveTo.minus(24, ChronoUnit.HOURS);
         
-        com.ntpc.queryapi.repository.AlertRepository.SlaMetricsProjection stats = 
+        // 24-hour stats for SLA Compliance and Breach counts
+        com.ntpc.queryapi.repository.AlertRepository.SlaMetricsProjection stats24h = 
             alertRepository.getSlaMetrics(effectiveFrom, effectiveTo, unit);
 
-        long totalAlerts = stats.getTotalAlerts() != null ? stats.getTotalAlerts() : 0;
-        long ackBreaches = stats.getAckBreachCount() != null ? stats.getAckBreachCount() : 0;
-        long resBreaches = stats.getResolveBreachCount() != null ? stats.getResolveBreachCount() : 0;
+        // All-time stats for MTTR and Avg Ack Time
+        com.ntpc.queryapi.repository.AlertRepository.SlaMetricsProjection allTimeStats = 
+            alertRepository.getSlaMetrics(Instant.EPOCH, effectiveTo, unit);
+
+        long totalAlerts = stats24h.getTotalAlerts() != null ? stats24h.getTotalAlerts() : 0;
+        long ackBreaches = stats24h.getAckBreachCount() != null ? stats24h.getAckBreachCount() : 0;
+        long resBreaches = stats24h.getResolveBreachCount() != null ? stats24h.getResolveBreachCount() : 0;
         
         double compliance = 1.0;
         if (totalAlerts > 0) {
@@ -187,9 +192,12 @@ public class AlertLifecycleController {
         }
         
         java.util.Map<String, Object> response = new java.util.HashMap<>();
-        response.put("avgAckSeconds", stats.getAvgAckSeconds() != null ? stats.getAvgAckSeconds() : 0.0);
-        response.put("avgResolveSeconds", stats.getAvgResolveSeconds() != null ? stats.getAvgResolveSeconds() : 0.0);
-        response.put("mttrSeconds", stats.getAvgResolveSeconds() != null ? stats.getAvgResolveSeconds() : 0.0);
+        // Averages from all-time data
+        response.put("avgAckSeconds", allTimeStats.getAvgAckSeconds() != null ? allTimeStats.getAvgAckSeconds() : 0.0);
+        response.put("avgResolveSeconds", allTimeStats.getAvgResolveSeconds() != null ? allTimeStats.getAvgResolveSeconds() : 0.0);
+        response.put("mttrSeconds", allTimeStats.getAvgResolveSeconds() != null ? allTimeStats.getAvgResolveSeconds() : 0.0);
+        
+        // Counts and compliance from 24h data
         response.put("ackBreachCount", ackBreaches);
         response.put("resolveBreachCount", resBreaches);
         response.put("slaCompliance", compliance);

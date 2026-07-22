@@ -189,6 +189,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SIMULATOR_BASE_URL: http://sensor-simulator:8081
+      ML_INFERENCE_BASE_URL: http://ml-inference:8090
       CORS_ORIGINS: "*"
       CACHE_TTL: 5
     networks:
@@ -229,6 +230,26 @@ services:
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic shift-handover-events --config retention.ms=31536000000;
       echo "Topics created."
       '
+
+  # ML Predictive Maintenance Inference Service
+  ml-inference:
+    build: ./ml-predictive
+    container_name: ntpc-ml-inference
+    hostname: ml-inference
+    ports:
+      - "8090:8090"
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-telemetry}
+      DB_USER: ${POSTGRES_USER:-telemetry}
+      DB_PASS: ${POSTGRES_PASSWORD:-telemetry_pass}
+      MODEL_DIR: models
+    networks:
+      - telemetry-net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
 
 # =============================================================================
 # Volumes

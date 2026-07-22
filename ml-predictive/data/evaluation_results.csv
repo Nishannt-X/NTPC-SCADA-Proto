@@ -1,0 +1,4 @@
+scenario,stage,lstm_pre_anomaly_rate,lstm_post_anomaly_rate,lstm_detected,lstm_max_mse,iforest_pre_anomalies,iforest_post_anomalies,iforest_detected
+Mill Bearing Degradation,Fuel Handling,0.0,0.0,False,0.0002113727096002549,0,0,False
+Boiler Tube Leak (Scenario),Boiler Island,0.0,0.0,False,0.00018948376236949116,0,0,False
+High Temperature Event,Multi-stage,0.0,0.0,False,0.00017496511281933635,0,0,False

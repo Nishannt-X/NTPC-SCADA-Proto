@@ -163,10 +163,11 @@ public class SensorSimulatorService {
                 affectedSensors.addAll(List.of(prefix + "-DRUM_LEVEL", prefix + "-MAIN_STEAM_PRES", prefix + "-FURNACE_DRAFT_PRES"));
                 break;
             case "COAL_MILL_TRIP":
-                activeFaults.put(prefix + "-MILL_MOTOR_CURRENT", new FaultState(0.01, durationCycles, 0.0));
-                activeFaults.put(prefix + "-MILL_OUTLET_TEMP", new FaultState(0.6, durationCycles, 0.0));
-                activeFaults.put(prefix + "-FEGT", new FaultState(0.7, durationCycles, 0.0));
-                affectedSensors.addAll(List.of(prefix + "-MILL_MOTOR_CURRENT", prefix + "-MILL_OUTLET_TEMP", prefix + "-FEGT"));
+                activeFaults.put(prefix + "-MILL_MOTOR_CURRENT", new FaultState(2.5, durationCycles, 0.0));
+                activeFaults.put(prefix + "-MILL_OUTLET_TEMP", new FaultState(1.3, durationCycles, 0.0));
+                activeFaults.put(prefix + "-FEGT", new FaultState(1.15, durationCycles, 0.0));
+                activeFaults.put(prefix + "-MAIN_STEAM_TEMP", new FaultState(1.15, durationCycles, 0.0));
+                affectedSensors.addAll(List.of(prefix + "-MILL_MOTOR_CURRENT", prefix + "-MILL_OUTLET_TEMP", prefix + "-FEGT", prefix + "-MAIN_STEAM_TEMP"));
                 break;
             case "CONDENSER_AIR_INGRESS":
                 activeFaults.put(prefix + "-CONDENSER_VACUUM", new FaultState(0.7, durationCycles, 0.0)); // -650 * 0.7 = -455 (critical)

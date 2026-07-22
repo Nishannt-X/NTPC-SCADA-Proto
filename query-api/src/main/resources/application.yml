@@ -42,6 +42,11 @@ spring:
 simulator:
   base-url: ${SIMULATOR_BASE_URL:http://localhost:8081}
 
+# --- ML Inference proxy ---
+ml:
+  inference:
+    base-url: ${ML_INFERENCE_BASE_URL:http://localhost:8090}
+
 # --- CORS ---
 cors:
   allowed-origins: ${CORS_ORIGINS:*}
